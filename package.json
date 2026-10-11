@@ -1,0 +1,16 @@
+{
+  "name": "ecopulse",
+  "private": true,
+  "version": "1.0.0",
+  "description": "EcoPulse — software-only real-time environmental intelligence platform",
+  "scripts": {
+    "dev:web": "pnpm --filter @ecopulse/web dev",
+    "dev:mobile": "pnpm --filter @ecopulse/mobile dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@10.25.0",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

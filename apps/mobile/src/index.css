@@ -1,0 +1,242 @@
+@import "tailwindcss";
+@import "@ecopulse/core/tokens.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Map Tailwind's theme onto the shared design tokens (values resolve at runtime, so dark mode just works). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-focus: var(--focus);
+  --color-p1: var(--p1);
+  --color-p2: var(--p2);
+  --color-p3: var(--p3);
+  --color-p4: var(--p4);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --ease-out: var(--ease);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+:root {
+  --tabbar-h: calc(4rem + env(safe-area-inset-bottom));
+  /* Stronger contrast for secondary text than the shared tokens (WCAG AA on surface and bg). */
+  --ink-2: #3f4842;
+  --ink-3: #5c635d;
+  --line-strong: #b9b3a4;
+  --desk-bg: #dedad0;
+  --poor-ink: #b3261e;
+  --sheet-bottom: var(--tabbar-h);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink-2: #bcc4be;
+  --ink-3: #98a29a;
+  --line-strong: #46544d;
+  --desk-bg: #070b0a;
+  --poor-ink: #f08a7e;
+}
+:root.no-tabbar {
+  --sheet-bottom: 0px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* The whole UI is sized in rem, so the Text size setting (Profile) scales it by changing this. */
+  font-size: 16px;
+}
+html[data-text-size="large"] {
+  font-size: 18px;
+}
+html[data-text-size="xl"] {
+  font-size: 20px;
+}
+
+/*
+ * Laptop / desktop browser: show the app as a centred phone-width column on a calm background.
+ * The transform makes #root the containing block for position: fixed descendants (tab bar,
+ * sheets, toasts), so everything stays inside the column.
+ */
+@media (min-width: 640px) {
+  body {
+    background: var(--desk-bg);
+  }
+  #root {
+    position: relative;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--bg);
+    transform: translateZ(0);
+    overflow: hidden;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    box-shadow: 0 0 40px rgba(22, 32, 27, 0.08);
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  overflow: hidden;
+  /* App chrome is not selectable; long-press on text should not pop the selection UI. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+input,
+textarea,
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+/* Press feedback for touch: subtle, no bounce. */
+.pressable {
+  transition: background-color 120ms var(--ease), transform 120ms var(--ease), opacity 120ms var(--ease);
+}
+.pressable:active {
+  transform: scale(0.985);
+}
+
+.skeleton {
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  animation: skeleton 1.4s ease-in-out infinite;
+}
+@keyframes skeleton {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.live-dot {
+  animation: live 2s ease-in-out infinite;
+}
+@keyframes live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* MapLibre chrome, toned down to match the app. */
+.maplibregl-ctrl-attrib {
+  font-size: 10px !important;
+  background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
+  color: var(--ink-3) !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--ink-3) !important;
+}
+.maplibregl-ctrl-attrib-button {
+  background-color: transparent !important;
+}
+[data-theme="dark"] .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+.maplibregl-canvas:focus-visible {
+  outline: none;
+}
+
+.user-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2f6fd6;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgba(47, 111, 214, 0.22), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.report-pin {
+  width: 36px;
+  height: 46px;
+  transform-origin: bottom center;
+}
+
+/* Hide the default number spin buttons etc. */
+textarea {
+  resize: none;
+}

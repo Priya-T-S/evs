@@ -1,0 +1,23 @@
+{
+  "name": "@ecopulse/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "maplibre-gl": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.14",
+    "maplibre-gl": "^5.9.0",
+    "typescript": "^5.6.0"
+  }
+}

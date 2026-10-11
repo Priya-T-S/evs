@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>EcoPulse · Command Center</title>
+    <script>
+      // Follow the system theme unless the user chose one with the toggle.
+      try {
+        var c = localStorage.getItem("ecopulse.theme.choice");
+        document.documentElement.dataset.theme =
+          c === "dark" || c === "light" ? c : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

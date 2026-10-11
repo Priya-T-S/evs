@@ -1,0 +1,60 @@
+# EcoPulse infrastructure for local development and single-host deployment.
+#   docker compose up -d db redis minio      # infrastructure only (run the API locally)
+#   docker compose --profile app up -d       # everything, including API + worker
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ecopulse
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ecopulse
+      MINIO_ROOT_PASSWORD: ecopulse-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+
+  api:
+    profiles: [app]
+    build: ./backend
+    environment: &backend_env
+      ECOPULSE_DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/ecopulse
+      ECOPULSE_REDIS_URL: redis://redis:6379/0
+      ECOPULSE_ENV: production
+      ECOPULSE_EMBEDDED_WORKER: "false"
+      ECOPULSE_STORAGE_BACKEND: s3
+      ECOPULSE_S3_ENDPOINT_URL: http://minio:9000
+      ECOPULSE_S3_ACCESS_KEY: ecopulse
+      ECOPULSE_S3_SECRET_KEY: ecopulse-secret
+      ECOPULSE_JWT_SECRET: ${ECOPULSE_JWT_SECRET:-change-me-in-production-please-0123456789}
+      ECOPULSE_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  worker:
+    profiles: [app]
+    build: ./backend
+    command: python -m app.worker
+    environment: *backend_env
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+
+volumes:
+  pgdata:
+  miniodata:

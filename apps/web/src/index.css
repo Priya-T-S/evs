@@ -1,0 +1,191 @@
+@import "tailwindcss";
+@import "@ecopulse/core/tokens.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/* Dark is the default for the command center (ops-center feel). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-focus: var(--focus);
+  --color-p1: var(--p1);
+  --color-p2: var(--p2);
+  --color-p3: var(--p3);
+  --color-p4: var(--p4);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-prov-observed: var(--prov-observed);
+  --color-prov-external: var(--prov-external);
+  --color-prov-model: var(--prov-model);
+  --color-prov-recommendation: var(--prov-recommendation);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --ease-out: var(--ease);
+}
+
+/* Text tokens with better contrast for small labels (WCAG AA on every surface). */
+:root[data-theme="light"],
+:root:not([data-theme]) {
+  --ink-2: #414a44;
+  --ink-3: #5c645e;
+  --prov-external: #4b6886;
+  --prov-recommendation: #8a5f0a;
+}
+:root[data-theme="dark"] {
+  --ink-2: #b6beb8;
+  --series-open: #d95926;
+  --series-resolved: #3987e5;
+  --ink-3: #939d96;
+  --danger-ink: #f0a39b;
+  --warn-ink: #e7c46a;
+}
+:root {
+  /* Two-series chart palette (validated: dataviz validate_palette, light + dark) */
+  --series-open: #eb6834;
+  --series-resolved: #2a78d6;
+  --danger-ink: #9c2119;
+  --warn-ink: #7a5a0c;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--brand-soft);
+}
+
+/* Thin, quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ------------------------------------------------------------------ MapLibre */
+.maplibregl-map {
+  font-family: var(--font-sans);
+}
+.maplibregl-ctrl-bottom-right {
+  right: var(--map-inset-right, 0px) !important;
+  transition: right 0.2s;
+}
+.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
+  color: var(--ink-3) !important;
+  font-size: 10px !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--ink-2) !important;
+}
+.maplibregl-ctrl-attrib-button {
+  filter: var(--attrib-filter, none);
+}
+[data-theme="dark"] .maplibregl-ctrl-attrib-button {
+  --attrib-filter: invert(1);
+}
+
+/* Live row highlight (respects reduced motion via tokens.css) */
+@keyframes flash-in {
+  from {
+    background-color: color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.row-flash {
+  animation: flash-in 2.4s var(--ease) 1;
+}
+
+@keyframes live-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.live-dot {
+  animation: live-dot 2.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
