@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { DomainTag, Drawer, ErrorState, InfoTip, PriorityChip, ProvenanceBadge, Section, StatusPill } from "@/components/ui";
 import { CONFIDENCE_HELP, FORECAST_HELP, HOTSPOT_HELP, RISK_HELP } from "@/lib/glossary";
 import { DrawerSkeleton } from "./IncidentDetail";
+import { DrivesSection } from "./Drives";
 
 export function useHotspot(id: string) {
   return useQuery({ queryKey: ["hotspots", "detail", id], queryFn: () => api.hotspots.get(id), enabled: !!id });
@@ -190,6 +191,8 @@ export function HotspotBody({ h, onSelect }: { h: HD; onSelect: (s: Selection) =
           ))
         )}
       </Section>
+
+      {h.kind === "observed" && <DrivesSection hotspotId={h.id} />}
     </>
   );
 }

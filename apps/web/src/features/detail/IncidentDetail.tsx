@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, ExternalLink, Flame, Hospital, School, Users } from "lucide-react";
+import { AlarmClock, Camera, ExternalLink, Flame, Hospital, School, Users } from "lucide-react";
 import {
   OPEN_STATUSES,
   RECOMMENDATION_KIND,
@@ -15,10 +15,11 @@ import {
 } from "@ecopulse/core";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { ago } from "@/lib/hooks";
+import { ago, useNow } from "@/lib/hooks";
 import { DemoTag, DomainTag, Drawer, ErrorState, Fact, InfoTip, LifecycleStepper, PriorityChip, ProvenanceBadge, Section, Skeleton, StatusPill, Timeline } from "@/components/ui";
-import { CONFIDENCE_HELP, HOTSPOT_HELP, PRIORITY_DEADLINE, PRIORITY_HELP, PROVENANCE_PLAIN, RISK_HELP, STATUS_STEPS_HELP, openFor } from "@/lib/glossary";
+import { CONFIDENCE_HELP, HOTSPOT_HELP, PRIORITY_DEADLINE, PRIORITY_HELP, PROVENANCE_PLAIN, RISK_HELP, SLA_HELP, STATUS_STEPS_HELP, dueIn, openFor } from "@/lib/glossary";
 import { IncidentActions } from "./IncidentActions";
+import { DrivesSection } from "./Drives";
 
 export function useIncident(id: string) {
   return useQuery({ queryKey: ["incident", id], queryFn: () => api.incidents.get(id) });
@@ -97,6 +98,7 @@ export function IncidentDetail({ id, onClose, onSelect }: { id: string; onClose:
 
       <Section title="Progress" help={STATUS_STEPS_HELP}>
         <LifecycleStepper status={d.status} />
+        {d.sla_due_at && <SlaLine due={d.sla_due_at} />}
         {d.assignment && (
           <p className="mt-3 text-[13px] text-ink-2">
             Assigned to <span className="text-ink">{d.assignment.team}</span>
@@ -167,6 +169,8 @@ export function IncidentDetail({ id, onClose, onSelect }: { id: string; onClose:
 
       <Reports d={d} />
 
+      <DrivesSection incidentId={d.id} />
+
       {(d.related.length > 0 || d.hotspot) && (
         <Section title="Nearby" help={HOTSPOT_HELP}>
           {d.hotspot && (
@@ -202,6 +206,20 @@ export function IncidentDetail({ id, onClose, onSelect }: { id: string; onClose:
         </Section>
       )}
     </Drawer>
+  );
+}
+
+function SlaLine({ due }: { due: string }) {
+  const now = useNow(60_000);
+  const { overdue, text } = dueIn(due, now);
+  return (
+    <p className={cn("mt-3 flex items-center gap-1.5 text-[13px]", overdue ? "font-medium text-[color:var(--danger-ink)]" : "text-ink-2")}>
+      <AlarmClock className="size-3.5 shrink-0" aria-hidden />
+      <span>
+        Fix target <span className="num">{formatDate(due, false)}</span> · {text}
+      </span>
+      <InfoTip label="Fix target">{SLA_HELP}</InfoTip>
+    </p>
   );
 }
 

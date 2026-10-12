@@ -431,6 +431,39 @@ class Intervention(TimestampMixin, Base):
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class CleanupDrive(TimestampMixin, Base):
+    """A citizen-organised clean-up event, usually at a reported incident or hotspot."""
+
+    __tablename__ = "cleanup_drives"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    title: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(Text)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    duration_min: Mapped[int] = mapped_column(Integer, default=120)
+    # Meeting point. Chosen by the organiser and public; when created from an incident it is the
+    # incident's snapped public point, never the reporter's exact location.
+    geom = mapped_column(Geometry("POINT", srid=4326))
+    location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), index=True)
+    incident_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("incidents.id", ondelete="SET NULL"), index=True)
+    hotspot_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hotspots.id", ondelete="SET NULL"), index=True)
+    organizer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    max_volunteers: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="scheduled", index=True)  # scheduled | completed | cancelled
+    bags_collected: Mapped[int | None] = mapped_column(Integer)
+    attended: Mapped[int | None] = mapped_column(Integer)
+    outcome_note: Mapped[str | None] = mapped_column(Text)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class DriveParticipant(TimestampMixin, Base):
+    __tablename__ = "drive_participants"
+
+    drive_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cleanup_drives.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+
+
 class Notification(TimestampMixin, Base):
     __tablename__ = "notifications"
 

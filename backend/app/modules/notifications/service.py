@@ -28,6 +28,8 @@ KINDS = {
     "risk_increased": "area",
     "critical_nearby": "area",
     "flood_risk": "area",
+    "drive_nearby": "area",
+    "drive_update": "my_reports",
     "points_awarded": "rewards",
 }
 AREA_DAILY_CAP = 3
@@ -113,6 +115,8 @@ POINTS = {
     "report_verified": 10,  # an incident you reported was verified
     "verification": 2,  # you confirmed / refuted an incident's status
     "resolution_confirmed": 5,  # you confirmed a fix on the ground
+    "drive_completed": 15,  # you volunteered at a completed clean-up drive
+    "drive_organized": 10,  # you organised a clean-up drive that took place
 }
 
 

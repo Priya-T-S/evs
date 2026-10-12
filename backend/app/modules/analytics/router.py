@@ -2,13 +2,16 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.catalog import OPEN_STATUSES, category_label
+from app.core.catalog import OPEN_STATUSES, SLA_HOURS, category_label
 from app.core.db import get_db
 from app.core.deps import require
 from app.models import User
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 OPEN_SQL = "('" + "','".join(OPEN_STATUSES) + "')"
+# Resolution targets per priority as an inline table: JOIN {SLA_SQL} ON sla.p = <priority>.
+SLA_SQL = "(VALUES " + ",".join(f"('{p}', {h})" for p, h in SLA_HOURS.items()) + ") AS sla(p, h)"
+OVERDUE_SQL = f"(status IN {OPEN_SQL} AND first_reported_at < now() - make_interval(hours => sla.h))"
 
 
 @router.get("/overview")
@@ -29,6 +32,15 @@ async def overview(
                   (SELECT count(*) FROM incidents WHERE first_reported_at >= now() - {period}) incidents,
                   (SELECT count(*) FROM incidents WHERE resolved_at >= now() - {period}) resolved,
                   (SELECT count(*) FROM incidents WHERE status IN {OPEN_SQL}) open,
+                  (SELECT count(*) FROM incidents JOIN {SLA_SQL} ON sla.p = priority WHERE {OVERDUE_SQL}) overdue,
+                  (SELECT avg(CASE WHEN i.resolved_at <= i.first_reported_at + make_interval(hours => sla.h) THEN 1.0 ELSE 0 END)
+                     FROM incidents i
+                     CROSS JOIN LATERAL (
+                       SELECT e.data->>'priority' p FROM incident_events e
+                       WHERE e.incident_id = i.id AND e.kind = 'prioritized' AND e.created_at <= i.resolved_at
+                       ORDER BY e.created_at DESC LIMIT 1) pe
+                     JOIN {SLA_SQL} ON sla.p = pe.p
+                     WHERE i.resolved_at >= now() - {period}) on_time_share,
                   (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM resolved_at - first_reported_at)/86400)
                      FROM incidents WHERE resolved_at >= now() - {period}) median_resolution_days,
                   (SELECT avg(CASE WHEN status = 'citizen_verified' THEN 1.0 ELSE 0 END)
@@ -74,8 +86,10 @@ async def overview(
     teams = await db.execute(
         text(
             f"""SELECT assigned_team, count(*) FILTER (WHERE status IN {OPEN_SQL}) open,
-                       count(*) FILTER (WHERE resolved_at >= now() - {period}) resolved
-                FROM incidents WHERE assigned_team IS NOT NULL GROUP BY 1 ORDER BY 2 DESC"""
+                       count(*) FILTER (WHERE resolved_at >= now() - {period}) resolved,
+                       count(*) FILTER (WHERE {OVERDUE_SQL}) overdue
+                FROM incidents LEFT JOIN {SLA_SQL} ON sla.p = priority
+                WHERE assigned_team IS NOT NULL GROUP BY 1 ORDER BY 2 DESC"""
         ),
         p,
     )
@@ -87,6 +101,8 @@ async def overview(
             "incidents": totals.incidents,
             "resolved": totals.resolved,
             "open": totals.open,
+            "overdue": totals.overdue,
+            "on_time_share": round(float(totals.on_time_share), 2) if totals.on_time_share is not None else None,
             "median_resolution_days": round(totals.median_resolution_days, 1) if totals.median_resolution_days else None,
             "citizen_confirmed_share": round(float(totals.citizen_confirmed_share), 2) if totals.citizen_confirmed_share is not None else None,
             "active_reporters": totals.active_reporters,
@@ -99,5 +115,5 @@ async def overview(
         ],
         "by_location": [{"id": i, "name": nm, "open": o, "new": nw, "resolved": rs, "score": sc} for i, nm, o, nw, rs, sc in by_location],
         "status_funnel": funnel,
-        "teams": [{"team": t, "open": o, "resolved": r} for t, o, r in teams],
+        "teams": [{"team": t, "open": o, "resolved": r, "overdue": od} for t, o, r, od in teams],
     }

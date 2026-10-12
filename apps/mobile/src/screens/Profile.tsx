@@ -24,6 +24,8 @@ const REASON: Record<string, string> = {
   report_verified: "Your report was confirmed",
   verification: "You confirmed a problem",
   resolution_confirmed: "You checked a fix",
+  drive_completed: "You helped at a clean-up drive",
+  drive_organized: "You organised a clean-up drive",
 };
 
 export function ProfileScreen() {

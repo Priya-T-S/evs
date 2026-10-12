@@ -59,3 +59,8 @@ def priority_for(risk: float) -> str:
         if risk >= threshold:
             return label
     return "P4"
+
+
+# Service-level targets: hours from the first report within which an open incident of this
+# priority should be resolved. P4 is "monitor" and has no deadline.
+SLA_HOURS = {"P1": 24, "P2": 72, "P3": 14 * 24}

@@ -1,6 +1,6 @@
 import uuid
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import ratelimit
 from app.core.audit import audit
-from app.core.catalog import CATEGORY_BY_SLUG, OPEN_STATUSES, TERMINAL, category_domain
+from app.core.catalog import CATEGORY_BY_SLUG, OPEN_STATUSES, SLA_HOURS, TERMINAL, category_domain
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import client_ip, current_user, optional_user, require
@@ -60,6 +60,7 @@ async def list_incidents(
     hotspot_id: uuid.UUID | None = None,
     q: str | None = Query(None, max_length=80),
     since: datetime | None = None,
+    overdue: bool = Query(False, description="Only open incidents past their priority's resolution target"),
     sort: Literal["risk", "recent"] = "risk",
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0, le=10_000),
@@ -87,6 +88,12 @@ async def list_incidents(
         stmt = stmt.where(Incident.hotspot_id == hotspot_id)
     if since:
         stmt = stmt.where(Incident.last_reported_at >= since)
+    if overdue:
+        now = datetime.now(UTC)
+        stmt = stmt.where(
+            Incident.status.in_(OPEN_STATUSES),
+            or_(*((Incident.priority == p) & (Incident.first_reported_at < now - timedelta(hours=h)) for p, h in SLA_HOURS.items())),
+        )
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(Incident.ref.ilike(like), Incident.title.ilike(like)))

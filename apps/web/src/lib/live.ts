@@ -26,12 +26,14 @@ export interface QueueKey {
   status: string;
   since?: string;
   bbox?: string;
+  overdue?: boolean;
 }
 
 function matches(k: QueueKey, d: Incident): boolean {
   if (!OPEN_STATUSES.includes(d.status)) return false;
   if (d.priority !== k.priority) return false;
   if (k.domain && !k.domain.split(",").includes(d.domain)) return false;
+  if (k.overdue && !d.overdue) return false;
   if (k.status !== "open" && k.status !== d.status) return false;
   if (k.since && Date.parse(d.last_reported_at) < Date.parse(k.since)) return false;
   if (k.bbox) {

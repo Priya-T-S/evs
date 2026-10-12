@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, HelpCircle, Lock, MapPin, Users, X } from "lucide-react";
-import { LIFECYCLE, RISK_DRIVER_LABEL, STATUS, formatDate, haversine, type Domain, type IncidentDetail, type IncidentStatus, type Priority } from "@ecopulse/core";
+import { Check, HelpCircle, Lock, MapPin, Sparkles, Users, X } from "lucide-react";
+import { LIFECYCLE, OPEN_STATUSES, RISK_DRIVER_LABEL, STATUS, formatDate, haversine, type Domain, type IncidentDetail, type IncidentStatus, type Priority } from "@ecopulse/core";
 import { formatDistance, timeAgo } from "../lib/format";
-import { useIncident } from "../lib/queries";
+import { useIncident, useIncidentDrives } from "../lib/queries";
 import { usePosition } from "../lib/location";
 import { api, errorMessage, mediaUrl } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -12,7 +13,8 @@ import { haptic } from "../lib/haptics";
 import { toast } from "../lib/toast";
 import { DRIVER_WORD, EVENT_WORD, STATUS_HINT, STATUS_WORD, confidenceWord, problemTitle, urgencyReason, urgencyWord } from "../lib/words";
 import { CategoryBadge } from "./CategoryIcon";
-import { DemoTag, Disclosure, ErrorState, ListRow, PriorityChip, ProvenanceLabel, Sheet, Skeleton, StatusPill, cx, type Snap } from "./ui";
+import { DriveCard } from "./Drives";
+import { Button, DemoTag, Disclosure, ErrorState, ListRow, PriorityChip, ProvenanceLabel, Sheet, Skeleton, StatusPill, cx, type Snap } from "./ui";
 
 /** Minimal fields we may already know (from a map feature or a list row) before the detail loads. */
 export interface IncidentPreview {
@@ -170,6 +172,8 @@ export function IncidentDetailBody({ d, onOpenRelated }: { d: IncidentDetail; on
         )}
       </Section>
 
+      <CleanUp d={d} />
+
       <Section title="How urgent is it?">
         <p className="text-[1.0625rem] text-ink">
           Urgency: <span className="font-semibold">{urgencyWord(d.risk_score)}</span>
@@ -285,6 +289,45 @@ function Lifecycle({ status }: { status: IncidentStatus }) {
       <p className="text-[0.9375rem] text-ink-2">{STATUS_HINT[status]}</p>
       {next && <p className="mt-1 text-[0.9375rem] text-ink-2">Next step: {STATUS_WORD[next]}</p>}
     </div>
+  );
+}
+
+/** Problems neighbours can safely help clear by hand. */
+const CLEANUP_DOMAINS: Domain[] = ["waste", "water", "flood", "green"];
+
+function CleanUp({ d }: { d: IncidentDetail }) {
+  const navigate = useNavigate();
+  const closeIncident = useUi((s) => s.closeIncident);
+  const open = OPEN_STATUSES.includes(d.status) && CLEANUP_DOMAINS.includes(d.domain);
+  const q = useIncidentDrives(open ? d.id : null);
+  if (!open) return null;
+  const drives = q.data?.items ?? [];
+  return (
+    <Section title="Clean it up together">
+      {drives.length > 0 ? (
+        <div className="space-y-2.5">
+          {drives.map((x) => (
+            <DriveCard key={x.id} d={x} showPlace={false} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-[0.9375rem] leading-[1.375rem] text-ink-2">Want to help? Plan a clean-up with your neighbours. People living nearby get a message and can join.</p>
+      )}
+      <Button
+        block
+        size="sm"
+        variant={drives.length ? "ghost" : "secondary"}
+        icon={Sparkles}
+        className="mt-2.5"
+        onClick={() => {
+          haptic.tap();
+          closeIncident();
+          navigate(`/drives/new?incident=${d.id}`);
+        }}
+      >
+        {drives.length ? "Plan another clean-up" : "Organise a clean-up"}
+      </Button>
+    </Section>
   );
 }
 

@@ -95,6 +95,9 @@ export interface Incident {
   first_reported_at: string;
   last_reported_at: string;
   resolved_at: string | null;
+  /** Resolution target for the current priority (first report + P1 24 h / P2 3 d / P3 14 d); null for P4 and closed incidents. */
+  sla_due_at: string | null;
+  overdue: boolean;
   assigned_team: string | null;
   thumb_url: string | null;
   is_demo: boolean;
@@ -438,6 +441,8 @@ export interface Analytics {
     incidents: number;
     resolved: number;
     open: number;
+    overdue: number;
+    on_time_share: number | null;
     median_resolution_days: number | null;
     citizen_confirmed_share: number | null;
     active_reporters: number;
@@ -447,7 +452,46 @@ export interface Analytics {
   by_category: { category: string; label: string; incidents: number; open: number; avg_days_to_resolve: number | null }[];
   by_location: { id: number; name: string; open: number; new: number; resolved: number; score: number | null }[];
   status_funnel: Record<string, number>;
-  teams: { team: string; open: number; resolved: number }[];
+  teams: { team: string; open: number; resolved: number; overdue: number }[];
+}
+
+export type DriveStatus = "scheduled" | "completed" | "cancelled";
+
+export interface CleanupDrive {
+  id: string;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  duration_min: number;
+  lon: number;
+  lat: number;
+  location_id: number | null;
+  location_name: string | null;
+  incident: { id: string; ref: string; title: string; category: string; status: IncidentStatus } | null;
+  hotspot: { id: string; name: string } | null;
+  organizer: string | null;
+  is_organizer: boolean;
+  joined: boolean;
+  volunteers: number;
+  max_volunteers: number | null;
+  spots_left: number | null;
+  status: DriveStatus;
+  bags_collected: number | null;
+  attended: number | null;
+  outcome_note: string | null;
+  completed_at: string | null;
+  created_at: string;
+  can_manage: boolean;
+  distance_m?: number;
+}
+
+export interface DriveStats {
+  period_days: number;
+  completed: number;
+  bags_collected: number;
+  volunteers: number;
+  upcoming: number;
 }
 
 // ---------------------------------------------------------------- realtime

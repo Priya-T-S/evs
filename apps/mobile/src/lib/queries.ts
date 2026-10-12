@@ -69,6 +69,22 @@ export function usePoints() {
   return useQuery({ queryKey: ["points"], queryFn: api.auth.points, enabled: !!access });
 }
 
+/** Upcoming clean-up drives around a position. */
+export const useDrivesNear = (p: Position, radius_m = 5000) =>
+  useQuery({
+    queryKey: ["drives", "near", r3(p.lat), r3(p.lon), radius_m],
+    queryFn: () => api.drives.list({ when: "upcoming", lat: p.lat, lon: p.lon, radius_m }),
+    placeholderData: keepPreviousData,
+  });
+
+export function useMyDrives() {
+  const access = useApp((s) => s.access);
+  return useQuery({ queryKey: ["drives", "mine"], queryFn: () => api.drives.list({ when: "all", mine: true, limit: 50 }), enabled: !!access });
+}
+
+export const useIncidentDrives = (id: string | null) =>
+  useQuery({ queryKey: ["drives", "incident", id], queryFn: () => api.drives.list({ incident_id: id! }), enabled: !!id });
+
 export const useLayers = () => useQuery({ queryKey: ["layers"], queryFn: api.map.layers, staleTime: 6 * 60 * 60 * 1000 });
 
 export const useSources = () => useQuery({ queryKey: ["sources"], queryFn: api.external.status, staleTime: 5 * 60_000 });

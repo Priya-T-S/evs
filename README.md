@@ -85,6 +85,7 @@ clearly labelled demo data and retries later (Overpass responses are cached for 
 
 **Command center (`apps/web`, dark by default, light toggle).**
 - **Main screen:** a live priority queue (P1–P4 ranked by risk) beside a map that fills the rest of the screen, with a detail drawer on the right.
+- **Fix targets (SLA):** P1 must be fixed within 24 hours of the first report, P2 within 3 days and P3 within 14 days; P4 has no deadline. Overdue problems are flagged in the queue ("Only overdue" filter) and in the drawer, and Analytics shows how many are overdue now, the share fixed on time, and overdue counts per team.
 - **Detail drawer:**
   - Lifecycle stepper.
   - Data-trust block that keeps Observed, External, Model and Recommendation separate.
@@ -109,6 +110,7 @@ clearly labelled demo data and retries later (Overpass responses are cached for 
 - **Map:** full screen, with bottom sheets for details and Yes/No/Unsure community verification.
 - **Pulse:** live city feed.
 - **Profile:** EcoPoints and level, my reports, notification preferences, privacy, and the status of each data source.
+- **Clean-up drives:** from a waste, water, flood or tree problem, a registered citizen can organise a clean-up (date, time, length, optional cap). People living within 1.5 km and the problem's reporters get a message. Neighbours join from Home, the problem sheet or the Clean-up drives screen. Afterwards the organiser records bags collected and turnout; volunteers earn 15 EcoPoints and the organiser 10. The result is added to the problem's timeline for staff, and appears in the command center's drawer and Analytics. A clean-up never closes a problem: staff still resolve it.
 - **Accounts:** a guest who registers keeps their reports and points.
 
 Both apps share `packages/core`, including the `EcoMapController` GIS engine, so map behaviour is identical in both. Screenshot and review scripts are in `apps/web/scripts/shots.mjs`, `apps/mobile/scripts/shots.mjs` and `scripts/gis-review.mjs`. They rely on dev-only `window.__ep*` hooks that are left out of production builds.
@@ -192,7 +194,8 @@ GET  /map/layers | /map/incidents (zoom-adaptive) | /map/heatmap | /map/grid | /
      /map/green-zones | /map/waste-points | /map/sensitive-sites | /map/aqi | /map/recommendations | /map/search
 GET  /environmental-score?lat&lon | ?location_id   /environmental-score/locations   /{id}/history
 GET  /pulse   GET /recommendations   POST /recommendations/{id}/decision   GET|PATCH /interventions
-GET  /analytics/overview   GET /notifications   POST /assistant/ask   GET /external-data/status
+GET|POST /drives   GET /drives/{id}   POST|DELETE /drives/{id}/join   POST /drives/{id}/complete | /cancel   GET /drives/stats/summary
+GET  /incidents?overdue=true   GET  /analytics/overview   GET /notifications   POST /assistant/ask   GET /external-data/status
 GET  /users   PATCH /users/{id}   GET /audit-logs   POST /admin/jobs/{regenerate|refresh_external}
 WS   /ws?token=…   → {"type":"subscribe","topics":[…],"bbox":[w,s,e,n]}
      events: incident.created|updated|resolved, hotspot.created|updated|cooled,

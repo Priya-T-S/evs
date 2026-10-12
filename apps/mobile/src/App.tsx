@@ -26,6 +26,7 @@ import { InboxScreen } from "./screens/Inbox";
 import { PrivacyScreen, SourcesScreen } from "./screens/Info";
 import { AccountScreen } from "./screens/Account";
 import { HelpScreen, HowItWorksScreen } from "./screens/Help";
+import { DrivesScreen, NewDriveScreen } from "./screens/Drives";
 
 import ReportFlow from "./screens/Report";
 
@@ -178,6 +179,8 @@ function Shell() {
                 <Route path="/profile/help" element={<HelpScreen />} />
                 <Route path="/profile/how" element={<HowItWorksScreen />} />
                 <Route path="/account" element={<AccountScreen />} />
+                <Route path="/drives" element={<DrivesScreen />} />
+                <Route path="/drives/new" element={<NewDriveScreen />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>

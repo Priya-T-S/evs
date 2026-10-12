@@ -7,7 +7,8 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { TopBar } from "@/components/layout/AppShell";
 import { DemoTag, ErrorState, InfoTip, ProvenanceBadge, Segmented, Skeleton } from "@/components/ui";
-import { CHART_HELP, SCORE_HELP } from "@/lib/glossary";
+import { CHART_HELP, SCORE_HELP, SLA_HELP } from "@/lib/glossary";
+import { DRIVES_HELP } from "@/features/detail/Drives";
 
 const PERIODS = [
   { key: 7, label: "7 days" },
@@ -47,6 +48,7 @@ export default function Analytics() {
                 <Funnel a={a} />
                 <Teams a={a} />
               </div>
+              <CleanUps days={days} />
               <Categories a={a} />
               <League a={a} />
             </div>
@@ -120,12 +122,14 @@ function Headline({ a, prev }: { a: A; prev?: A }) {
     { label: "New problems", value: t.incidents.toLocaleString("en-IN"), delta: <Delta pct={pct(t.incidents, prior("incidents"))} goodWhenUp={false} />, hint: "Reports about the same thing in the same place are grouped into one problem." },
     { label: "Fixed", value: t.resolved.toLocaleString("en-IN"), delta: <Delta pct={pct(t.resolved, prior("resolved"))} goodWhenUp />, hint: "Problems marked as fixed by staff in this period." },
     { label: "Typical days to fix", value: t.median_resolution_days == null ? "–" : `${t.median_resolution_days.toFixed(1)} d`, hint: "Median: half of the problems were fixed faster than this, half slower." },
+    { label: "Overdue now", value: t.overdue.toLocaleString("en-IN"), hint: `Open problems past their fix target right now (${t.open.toLocaleString("en-IN")} open in total). ${SLA_HELP}` },
+    { label: "Fixed on time", value: formatPct(t.on_time_share), hint: `Share of problems fixed in this period within the target for their priority. ${SLA_HELP}` },
     { label: "Fixes confirmed", value: formatPct(t.citizen_confirmed_share), hint: "Share of fixed problems that residents confirmed as really fixed." },
     { label: "Active reporters", value: t.active_reporters.toLocaleString("en-IN"), hint: "Residents who sent at least one report in this period." },
     { label: "Duplicate reports", value: formatPct(t.duplicate_share), hint: "Share of reports about a problem that was already reported. These are merged, not lost." },
   ];
   return (
-    <dl className="grid grid-cols-7 divide-x divide-line border-y border-line">
+    <dl className="grid grid-cols-9 divide-x divide-line border-y border-line">
       {tiles.map((x, i) => (
         <div key={x.label} className={cn("py-3", i === 0 ? "pr-3" : "px-3")}>
           <dt className="flex items-center gap-1.5 text-[13px] leading-tight text-ink-3">
@@ -303,22 +307,60 @@ function OpenResolvedBar({ open, resolved, max }: { open: number; resolved: numb
 function Teams({ a }: { a: A }) {
   const max = Math.max(1, ...a.teams.map((t) => t.open + t.resolved));
   return (
-    <Panel title="Team workload" sub={CHART_HELP.teams} how="Numbers on the right: still open / already fixed." aside={<SeriesLegend />}>
+    <Panel title="Team workload" sub={CHART_HELP.teams} how={`Numbers on the right: still open / already fixed. Red = how many of the open ones are overdue. ${SLA_HELP}`} aside={<SeriesLegend />}>
       {a.teams.length === 0 ? (
         <p className="text-[13px] text-ink-3">No problems were assigned to teams in this period. Try a longer period above.</p>
       ) : (
         <ul className="space-y-1.5">
           {a.teams.map((t) => (
-            <li key={t.team} className="grid grid-cols-[170px_1fr_88px] items-center gap-3">
+            <li key={t.team} className="grid grid-cols-[170px_1fr_88px_84px] items-center gap-3">
               <span className="truncate text-[13px] text-ink-2">{t.team}</span>
               <OpenResolvedBar open={t.open} resolved={t.resolved} max={max} />
               <span className="text-right text-[13px] tabular-nums">
                 {t.open} <span className="text-ink-3">/ {t.resolved}</span>
               </span>
+              <span className={cn("text-right text-[12.5px] tabular-nums", t.overdue ? "text-[color:var(--danger-ink)]" : "text-ink-3")}>
+                {t.overdue} overdue
+              </span>
             </li>
           ))}
         </ul>
       )}
+    </Panel>
+  );
+}
+
+function CleanUps({ days }: { days: number }) {
+  const q = useQuery({ queryKey: ["drives", "stats", days], queryFn: () => api.drives.stats(days), placeholderData: (p) => p });
+  const s = q.data;
+  const tiles = s
+    ? [
+        { label: "Clean-ups done", value: s.completed },
+        { label: "Bags of waste collected", value: s.bags_collected },
+        { label: "Volunteers took part", value: s.volunteers },
+        { label: "Coming up", value: s.upcoming },
+      ]
+    : [];
+  return (
+    <Panel
+      title="Community clean-ups"
+      sub="Clean-up drives that residents organised and joined from the citizen app, and what they collected."
+      how={DRIVES_HELP}
+      aside={<ProvenanceBadge kind="observed" />}
+    >
+      {q.isError && <ErrorState error={q.error} onRetry={() => q.refetch()} compact />}
+      {q.isPending && <Skeleton className="h-14" />}
+      {s && (
+        <dl className="grid grid-cols-4 divide-x divide-line border-y border-line">
+          {tiles.map((x, i) => (
+            <div key={x.label} className={cn("py-3", i === 0 ? "pr-3" : "px-3")}>
+              <dt className="text-[13px] text-ink-3">{x.label}</dt>
+              <dd className="mt-1 text-[22px] font-semibold leading-none tracking-tight tabular-nums">{x.value.toLocaleString("en-IN")}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {s && s.completed === 0 && s.upcoming === 0 && <p className="mt-2 text-[13px] text-ink-3">No clean-up drives in this period yet.</p>}
     </Panel>
   );
 }

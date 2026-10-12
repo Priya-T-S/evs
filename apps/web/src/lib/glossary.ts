@@ -9,14 +9,25 @@ import type { IncidentStatus, Priority, Provenance, ScoreDimension } from "@ecop
 export const PRIORITY_WORD: Record<Priority, string> = { P1: "Critical", P2: "High", P3: "Moderate", P4: "Low" };
 
 export const PRIORITY_DEADLINE: Record<Priority, string> = {
-  P1: "act within 24 hours",
-  P2: "act within 3 days",
-  P3: "schedule the work",
+  P1: "fix within 24 hours",
+  P2: "fix within 3 days",
+  P3: "fix within 14 days",
   P4: "keep an eye on it",
 };
 
 export const PRIORITY_HELP =
-  "Priority sets how fast to act. P1 = critical, act within 24 hours. P2 = high, act within 3 days. P3 = moderate, schedule it. P4 = low, monitor. It comes from the urgency score.";
+  "Priority sets how fast to act. P1 = critical, fix within 24 hours. P2 = high, fix within 3 days. P3 = moderate, fix within 14 days. P4 = low, monitor (no deadline). It comes from the urgency score.";
+
+export const SLA_HELP =
+  "Each priority has a target time to fix, counted from the first report: P1 24 hours, P2 3 days, P3 14 days. P4 has no deadline. A problem past its target is overdue. If the priority goes up, the target gets shorter.";
+
+/** "overdue by 3 days" / "due in 5 hours" for an SLA target. */
+export function dueIn(iso: string, now = Date.now()): { overdue: boolean; text: string } {
+  const s = (Date.parse(iso) - now) / 1000;
+  const a = Math.abs(s);
+  const span = a < 3600 ? `${Math.max(1, Math.round(a / 60))} min` : a < 86400 ? plural(Math.round(a / 3600), "hour") : plural(Math.round(a / 86400), "day");
+  return s < 0 ? { overdue: true, text: `overdue by ${span}` } : { overdue: false, text: `due in ${span}` };
+}
 
 export const RISK_HELP =
   "Urgency score from 0 to 100. It goes up with how serious the problem is, how many people reported it, how many people live nearby, whether schools or hospitals are close, and how long it has been open.";

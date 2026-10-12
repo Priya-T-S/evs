@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { ChevronDown, School } from "lucide-react";
+import { AlarmClock, ChevronDown, School } from "lucide-react";
 import { DOMAIN, STATUS, type Domain, type Incident, type IncidentStatus, type Priority } from "@ecopulse/core";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -8,7 +8,7 @@ import { useLive, type QueueKey } from "@/lib/live";
 import { useNow } from "@/lib/hooks";
 import { cn } from "@/lib/cn";
 import { Button, Checkbox, DemoTag, ErrorState, InfoTip, PriorityChip, Select, Skeleton, StatusPill, Tooltip } from "@/components/ui";
-import { PRIORITY_DEADLINE, PRIORITY_HELP, PRIORITY_WORD, RISK_HELP, STATUS_HELP, openFor, plural } from "@/lib/glossary";
+import { PRIORITY_DEADLINE, PRIORITY_HELP, PRIORITY_WORD, RISK_HELP, SLA_HELP, STATUS_HELP, dueIn, openFor, plural } from "@/lib/glossary";
 
 const PRIORITIES: Priority[] = ["P1", "P2", "P3", "P4"];
 const PAGE = 20;
@@ -19,6 +19,7 @@ export interface QueueFilters {
   since?: string;
   bbox?: string;
   viewportOnly: boolean;
+  overdueOnly: boolean;
 }
 
 const STATUS_OPTIONS: { value: QueueFilters["status"]; label: string }[] = [
@@ -98,11 +99,23 @@ export function PriorityQueue({
           </Select>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <Checkbox
-            checked={filters.viewportOnly}
-            onChange={(v) => onFiltersChange({ ...filters, viewportOnly: v })}
-            label={<span className="text-[13px] text-ink-2">Only problems visible on the map</span>}
-          />
+          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <Checkbox
+              checked={filters.viewportOnly}
+              onChange={(v) => onFiltersChange({ ...filters, viewportOnly: v })}
+              label={<span className="text-[13px] text-ink-2">Only visible on map</span>}
+            />
+            <span className="inline-flex items-center gap-1">
+              <Checkbox
+                checked={filters.overdueOnly}
+                onChange={(v) => onFiltersChange({ ...filters, overdueOnly: v })}
+                label={<span className="text-[13px] text-ink-2">Only overdue</span>}
+              />
+              <InfoTip label="Overdue" side="right">
+                {SLA_HELP}
+              </InfoTip>
+            </span>
+          </span>
           <span className="flex items-center gap-1.5 whitespace-nowrap text-[12.5px] text-ink-3">
             Statuses
             <InfoTip label="Statuses" side="right" width={380}>
@@ -144,7 +157,7 @@ function DemoDataTag() {
 }
 
 export function queueKey(priority: Priority, f: QueueFilters): QueueKey {
-  return { priority, status: f.status, domain: f.domain || undefined, since: f.since, bbox: f.viewportOnly ? f.bbox : undefined };
+  return { priority, status: f.status, domain: f.domain || undefined, since: f.since, bbox: f.viewportOnly ? f.bbox : undefined, overdue: f.overdueOnly || undefined };
 }
 
 function QueueSection({
@@ -168,7 +181,7 @@ function QueueSection({
   const q = useInfiniteQuery({
     queryKey: ["queue", key],
     queryFn: ({ pageParam, signal }) =>
-      api.incidents.list({ sort: "risk", status: key.status, domain: key.domain, priority, since: key.since, bbox: key.bbox, limit: PAGE, offset: pageParam }, signal),
+      api.incidents.list({ sort: "risk", status: key.status, domain: key.domain, priority, since: key.since, bbox: key.bbox, overdue: key.overdue, limit: PAGE, offset: pageParam }, signal),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.offset + last.items.length < last.total ? last.offset + last.items.length : undefined),
     placeholderData: (prev) => prev,
@@ -208,8 +221,10 @@ function QueueSection({
           {q.isError && <ErrorState error={q.error} onRetry={() => q.refetch()} compact />}
           {q.isSuccess && !items.length && (
             <p className="px-4 pb-3 pl-10 text-[13px] text-ink-3">
-              No {PRIORITY_WORD[priority].toLowerCase()} problems{filters.viewportOnly ? " in the visible map area" : ""} right now.
-              {(filters.viewportOnly || filters.domain || filters.status !== "open") && " Clear the filters above to see more."}
+              {filters.overdueOnly && priority === "P4"
+                ? "Low-priority problems have no deadline, so they are never overdue."
+                : <>No {filters.overdueOnly ? "overdue " : ""}{PRIORITY_WORD[priority].toLowerCase()} problems{filters.viewportOnly ? " in the visible map area" : ""} right now.</>}
+              {(filters.viewportOnly || filters.overdueOnly || filters.domain || filters.status !== "open") && " Clear the filters above to see more."}
             </p>
           )}
           {items.length > 0 && (
@@ -275,9 +290,19 @@ function QueueRow({ i, now, selected, onSelect, onHover }: { i: Incident; now: n
         <span className="col-span-2 flex min-w-0 items-center gap-1.5 overflow-hidden text-[12.5px] text-ink-3">
           <span className="whitespace-nowrap">{plural(i.reporter_count, "person", "people")} reported</span>
           <span aria-hidden>·</span>
-          <span className="whitespace-nowrap" title={`First reported ${new Date(i.first_reported_at).toLocaleString()}`}>
-            open {openFor(i.first_reported_at, now)}
-          </span>
+          {i.sla_due_at && i.overdue ? (
+            <span
+              className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-[color:var(--danger-ink)]"
+              title={`Target was ${new Date(i.sla_due_at).toLocaleString()} (${PRIORITY_DEADLINE[i.priority]}). First reported ${new Date(i.first_reported_at).toLocaleString()}.`}
+            >
+              <AlarmClock className="size-3.5 shrink-0" aria-hidden />
+              {dueIn(i.sla_due_at, now).text}
+            </span>
+          ) : (
+            <span className="whitespace-nowrap" title={`First reported ${new Date(i.first_reported_at).toLocaleString()}${i.sla_due_at ? ` · ${dueIn(i.sla_due_at, now).text}` : ""}`}>
+              open {openFor(i.first_reported_at, now)}
+            </span>
+          )}
           {i.near_sensitive && (
             <>
               <span aria-hidden>·</span>

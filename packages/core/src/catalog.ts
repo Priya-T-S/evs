@@ -170,4 +170,7 @@ export const EVENT_LABEL: Record<string, string> = {
   dismissed: "Dismissed",
   recategorized: "Category changed",
   severity_changed: "Severity changed",
+  cleanup_scheduled: "Community clean-up drive scheduled",
+  cleanup_completed: "Community clean-up drive completed",
+  cleanup_cancelled: "Community clean-up drive cancelled",
 };

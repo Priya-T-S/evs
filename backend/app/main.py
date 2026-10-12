@@ -20,6 +20,7 @@ from app.core.security import decode_access_token
 from app.modules.analytics.router import router as analytics_router
 from app.modules.assistant.router import router as assistant_router
 from app.modules.auth.router import router as auth_router
+from app.modules.drives.router import router as drives_router
 from app.modules.external_data.router import router as external_router
 from app.modules.hotspots.router import router as hotspots_router
 from app.modules.incidents.router import router as incidents_router
@@ -89,6 +90,7 @@ for r in (
     scores_router,
     pulse_router,
     recommendations_router,
+    drives_router,
     analytics_router,
     notifications_router,
     external_router,

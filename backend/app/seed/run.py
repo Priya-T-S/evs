@@ -2,6 +2,7 @@
 
     python -m app.seed.run            # seed an empty database
     python -m app.seed.run --reset    # wipe all data first
+    python -m app.seed.run --drives   # add demo clean-up drives to an already seeded database
 
 Every synthetic record has ``is_demo = true``. Synthetic reports are pushed through the
 real report pipeline (classification, duplicate detection, incident aggregation), so
@@ -24,7 +25,7 @@ from app.core.geo import cell, wkt_point
 from app.core.security import hash_password
 from app.intelligence import grid as gridlib
 from app.intelligence import hotspots, recommendations, scores
-from app.models import Incident, IncidentEvent, Report, ResolutionUpdate, User, Verification
+from app.models import CleanupDrive, DriveParticipant, Incident, IncidentEvent, Report, ResolutionUpdate, User, Verification
 from app.modules.reports.pipeline import process_report
 from app.providers import service as external
 from app.seed.demo_geo import CITY_BBOX, NEIGHBORHOODS
@@ -117,7 +118,7 @@ def _times(n: int, days: int, trend: str, now: datetime) -> list[datetime]:
 async def reset(db) -> None:
     await db.execute(
         text(
-            """TRUNCATE points_ledger, notifications, verifications, incident_events, assignments, resolution_updates,
+            """TRUNCATE drive_participants, cleanup_drives, points_ledger, notifications, verifications, incident_events, assignments, resolution_updates,
                media, reports, interventions, recommendations, incidents, hotspots, environmental_scores, external_data,
                grid_cells, green_zones, sensitive_sites, waste_points, locations, refresh_tokens, audit_logs, users, categories
                RESTART IDENTITY CASCADE"""
@@ -331,6 +332,76 @@ async def seed_lifecycle(db, citizen_ids: list[uuid.UUID]) -> None:
     await db.commit()
 
 
+DRIVE_NOTES = [
+    "Cleared the whole stretch. The corner bin is still missing, so it may pile up again.",
+    "Great turnout! Segregated plastic separately for the recycler.",
+    "Most of it is gone; construction debris was too heavy for us and needs a truck.",
+]
+
+
+async def seed_drives(db) -> int:
+    """A few community clean-up drives: some done (with results), some coming up."""
+    from app.modules.incidents.service import add_event
+    from app.modules.notifications.service import award
+
+    if await db.scalar(text("SELECT count(*) FROM cleanup_drives WHERE is_demo")):
+        return 0
+    now = datetime.now(UTC)
+    targets = (
+        await db.execute(
+            select(Incident)
+            .where(Incident.domain.in_(["waste", "water"]), Incident.status.in_(["prioritized", "assigned", "action_started", "verified"]))
+            .order_by(Incident.reporter_count.desc())
+            .limit(6)
+        )
+    ).scalars().all()
+    priya = await db.scalar(select(User.id).where(User.email == "citizen@ecopulse.dev"))
+    citizens = list((await db.execute(select(User.id).where(User.role == "citizen", User.email.is_(None), User.is_demo))).scalars())
+    if not targets or not citizens:
+        return 0
+    n = 0
+    for i, inc in enumerate(targets):
+        past = i % 2 == 1
+        day = now.date() + timedelta(days=-rng.randint(4, 24) if past else rng.randint(1, 9))
+        # 7:30 or 8:00 local (IST, UTC+5:30) morning start.
+        starts = datetime(day.year, day.month, day.day, 2, rng.choice([0, 30]), tzinfo=UTC)
+        organizer = priya if i == 0 else rng.choice(citizens)
+        crowd = rng.sample(citizens, rng.randint(3, 14))
+        d = CleanupDrive(
+            title=f"Clean-up: {inc.title}",
+            description="Meet at the spot. Gloves and bags provided; bring water." if not past else None,
+            starts_at=starts, duration_min=rng.choice([90, 120, 180]), geom=inc.public_geom, location_id=inc.location_id,
+            incident_id=inc.id, hotspot_id=inc.hotspot_id, organizer_id=organizer,
+            max_volunteers=rng.choice([None, 20, 25]), is_demo=True, created_at=starts - timedelta(days=rng.randint(3, 8)),
+        )
+        db.add(d)
+        await db.flush()
+        people = {organizer, *crowd}
+        for uid in people:
+            db.add(DriveParticipant(drive_id=d.id, user_id=uid, created_at=d.created_at + timedelta(hours=rng.randint(1, 48))))
+        await add_event(db, inc, "cleanup_scheduled", actor_id=organizer, note=d.title, drive_id=str(d.id))
+        if past:
+            d.status, d.completed_at = "completed", starts + timedelta(minutes=d.duration_min + 30)
+            d.attended = max(2, len(people) - rng.randint(0, 3))
+            d.bags_collected = rng.randint(2, 4) * d.attended
+            d.outcome_note = DRIVE_NOTES[i // 2 % len(DRIVE_NOTES)]
+            await add_event(db, inc, "cleanup_completed", actor_id=organizer, note=d.outcome_note, drive_id=str(d.id),
+                            bags=d.bags_collected, volunteers=d.attended)
+            for uid in people:
+                await award(db, uid, "drive_completed", str(d.id), ref_type="drive")
+            await award(db, organizer, "drive_organized", str(d.id), ref_type="drive")
+        await db.flush()
+        # Timeline events default to now(); place them when they would have happened.
+        await db.execute(
+            text("""UPDATE incident_events SET created_at = CASE kind WHEN 'cleanup_scheduled' THEN CAST(:c AS timestamptz) ELSE CAST(:done AS timestamptz) END
+                    WHERE incident_id = :i AND data->>'drive_id' = :d"""),
+            {"c": d.created_at, "done": d.completed_at or d.created_at, "i": inc.id, "d": str(d.id)},
+        )
+        n += 1
+    await db.commit()
+    return n
+
+
 async def recompute_all(db) -> None:
     from app.modules.incidents.service import confidence_from, recompute_risk
 
@@ -340,9 +411,12 @@ async def recompute_all(db) -> None:
     await db.commit()
 
 
-async def main(do_reset: bool) -> None:
+async def main(do_reset: bool, drives_only: bool = False) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     async with SessionLocal() as db:
+        if drives_only:
+            log.info("clean-up drives: %s", await seed_drives(db))
+            return
         if do_reset:
             log.info("resetting database")
             await reset(db)
@@ -369,6 +443,7 @@ async def main(do_reset: bool) -> None:
         log.info("grid: %s", await gridlib.refresh_grid(db))
         log.info("scores: %s locations", await scores.recompute(db, emit=False))
         log.info("recommendations: %s", await recommendations.generate(db))
+        log.info("clean-up drives: %s", await seed_drives(db))
         await scores.recompute(db, emit=False)
         log.info("done. Staff logins use password %r (development only).", DEMO_PASSWORD)
 
@@ -376,5 +451,6 @@ async def main(do_reset: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--reset", action="store_true")
+    parser.add_argument("--drives", action="store_true", help="only add demo clean-up drives")
     args = parser.parse_args()
-    asyncio.run(main(args.reset))
+    asyncio.run(main(args.reset, args.drives))

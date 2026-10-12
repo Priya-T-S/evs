@@ -36,7 +36,7 @@ export default function CommandCenter() {
   const [layerPanel, setLayerPanel] = useState(false);
   const [days, setDays] = useState(30);
   const [bbox, setBbox] = useState<string | undefined>();
-  const [qf, setQf] = useState<QueueFilters>({ domain: "", status: "open", viewportOnly: false });
+  const [qf, setQf] = useState<QueueFilters>({ domain: "", status: "open", viewportOnly: false, overdueOnly: false });
 
   const filters = useMemo(() => ({ ...qf, since: sinceFor(days), bbox }), [qf, days, bbox]);
   const mapFilters = useMemo(() => ({ days, domain: qf.domain ? [qf.domain] : undefined, status: "open" as const }), [days, qf.domain]);

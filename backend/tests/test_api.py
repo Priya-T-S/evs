@@ -119,3 +119,71 @@ async def test_guest_upgrade_keeps_identity(client):
     assert r.json()["user"]["id"] == guest["user"]["id"] and r.json()["user"]["is_guest"] is False
     # The guest's old refresh token no longer works.
     assert (await client.post("/auth/refresh", json={"refresh_token": guest["refresh_token"]})).status_code == 401
+
+
+async def test_sla_overdue_filter_matches_flags(client):
+    r = (await client.get("/incidents", params={"overdue": True, "limit": 50})).json()
+    assert all(i["overdue"] and i["priority"] != "P4" for i in r["items"])
+    # P4 has no deadline, so it is never overdue.
+    assert (await client.get("/incidents", params={"overdue": True, "priority": "P4"})).json()["total"] == 0
+    officer = await _login(client, "officer@ecopulse.dev")
+    totals = (await client.get("/analytics/overview", headers=officer)).json()["totals"]
+    assert totals["overdue"] == r["total"]
+
+
+async def _account(client: AsyncClient) -> dict:
+    import uuid
+
+    r = await client.post("/auth/register", json={"email": f"drive-{uuid.uuid4().hex[:8]}@example.com", "password": "drive-test-pass", "display_name": "Drive Tester"})
+    assert r.status_code in (200, 201), r.text
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+async def test_cleanup_drive_lifecycle(client):
+    from datetime import UTC, datetime, timedelta
+
+    organiser = await _account(client)
+    guest = {"Authorization": f"Bearer {(await client.post('/auth/guest')).json()['access_token']}"}
+    inc = (await client.get("/incidents", params={"domain": "waste", "limit": 1})).json()["items"][0]
+    later = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+
+    # Guests can join but not organise; a drive needs a place.
+    r = await client.post("/drives", json={"title": "Guest drive", "starts_at": later, "lat": 12.97, "lon": 77.59}, headers=guest)
+    assert r.status_code == 403
+    assert (await client.post("/drives", json={"title": "Nowhere", "starts_at": later}, headers=organiser)).status_code == 422
+
+    d = (await client.post("/drives", json={"title": "Test clean-up", "starts_at": later, "incident_id": inc["id"], "max_volunteers": 2}, headers=organiser)).json()
+    assert d["is_organizer"] and d["volunteers"] == 1 and d["incident"]["id"] == inc["id"]
+    assert (await client.post(f"/drives/{d['id']}/join", headers=guest)).json()["joined"] is True
+    other = {"Authorization": f"Bearer {(await client.post('/auth/guest')).json()['access_token']}"}
+    r = await client.post(f"/drives/{d['id']}/join", headers=other)
+    assert r.status_code == 409 and r.json()["error"]["code"] == "drive_full"
+    # Only the organiser (or staff) can record a result, and only once the drive has started.
+    assert (await client.post(f"/drives/{d['id']}/complete", json={"bags_collected": 1}, headers=guest)).status_code == 403
+    assert (await client.post(f"/drives/{d['id']}/complete", json={"bags_collected": 1}, headers=organiser)).status_code == 409
+    assert (await client.post(f"/drives/{d['id']}/cancel", json={}, headers=organiser)).json()["status"] == "cancelled"
+
+    now = (await client.post("/drives", json={"title": "Now clean-up", "starts_at": datetime.now(UTC).isoformat(), "incident_id": inc["id"]}, headers=organiser)).json()
+    await client.post(f"/drives/{now['id']}/join", headers=guest)
+    done = (await client.post(f"/drives/{now['id']}/complete", json={"bags_collected": 7}, headers=organiser)).json()
+    assert done["status"] == "completed" and done["bags_collected"] == 7
+    history = (await client.get("/auth/me/points", headers=guest)).json()["history"]
+    assert any(h["reason"] == "drive_completed" and h["ref_id"] == now["id"] for h in history)
+    kinds = [e["kind"] for e in (await client.get(f"/incidents/{inc['id']}")).json()["timeline"]]
+    assert "cleanup_completed" in kinds
+    assert (await client.get("/drives/stats/summary")).json()["bags_collected"] >= 7
+    await _delete_drives([d["id"], now["id"]])
+
+
+async def _delete_drives(ids: list[str]) -> None:
+    """Keep the shared demo database free of test drives (and their timeline entries and notifications)."""
+    from sqlalchemy import text
+
+    from app.core.db import SessionLocal
+
+    async with SessionLocal() as db:
+        p = {"ids": ids}
+        await db.execute(text("DELETE FROM incident_events WHERE data->>'drive_id' = ANY(:ids)"), p)
+        await db.execute(text("DELETE FROM notifications WHERE data->>'drive_id' = ANY(:ids)"), p)
+        await db.execute(text("DELETE FROM cleanup_drives WHERE id::text = ANY(:ids)"), p)
+        await db.commit()

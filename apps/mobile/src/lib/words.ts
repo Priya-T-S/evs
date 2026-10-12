@@ -55,6 +55,9 @@ export const EVENT_WORD: Record<string, string> = {
   dismissed: "Closed",
   recategorized: "Problem type changed",
   severity_changed: "Seriousness changed",
+  cleanup_scheduled: "Neighbours planned a clean-up",
+  cleanup_completed: "Neighbours cleaned it up",
+  cleanup_cancelled: "Clean-up cancelled",
 };
 
 export const LEVEL_WORD: Record<PulseLevel, string> = {

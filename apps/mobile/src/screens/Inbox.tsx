@@ -1,4 +1,5 @@
 import { plainText } from "../lib/words";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BellOff } from "lucide-react";
 import { type Notification } from "@ecopulse/core";
@@ -15,6 +16,7 @@ export function InboxScreen() {
   const q = useNotifications();
   const qc = useQueryClient();
   const open = useUi((s) => s.openIncident);
+  const navigate = useNavigate();
   const online = useNetwork((s) => s.online);
   const items = q.data?.items ?? [];
 
@@ -59,13 +61,15 @@ export function InboxScreen() {
           <ul className="border-b border-line bg-surface divide-y divide-line">
             {items.map((n) => {
               const incidentId = n.data?.incident_id;
+              const driveId = n.data?.drive_id;
               return (
                 <li key={n.id}>
                   <button
                     type="button"
                     onClick={() => {
                       if (!n.read) readOne.mutate(n.id);
-                      if (incidentId) open(incidentId);
+                      if (driveId) navigate("/drives");
+                      else if (incidentId) open(incidentId);
                     }}
                     className={cx("pressable flex w-full gap-3 px-4 py-3.5 text-left active:bg-surface-2", !n.read && "bg-brand-soft/40")}
                   >

@@ -4,6 +4,8 @@ import type {
   AssistantAnswer,
   AuthResponse,
   Classification,
+  CleanupDrive,
+  DriveStats,
   FeatureCollection,
   Hotspot,
   HotspotDetail,
@@ -122,6 +124,7 @@ export function createApi(opts: ApiOptions) {
   const get = <T>(path: string, q?: Query, signal?: AbortSignal) => request<T>("GET", path + qs(q), undefined, true, signal);
   const post = <T>(path: string, body?: unknown) => request<T>("POST", path, body);
   const patch = <T>(path: string, body?: unknown) => request<T>("PATCH", path, body);
+  const del = <T>(path: string) => request<T>("DELETE", path);
 
   const authed = async (p: Promise<AuthResponse>) => {
     const r = await p;
@@ -214,6 +217,27 @@ export function createApi(opts: ApiOptions) {
     interventions: {
       list: () => get<{ items: { id: string; kind: string; title: string; status: string; notes: string | null; created_at: string; location_name: string | null; recommendation: string | null }[] }>("/interventions"),
       update: (id: string, status: "planned" | "in_progress" | "completed", notes?: string) => patch<{ status: string }>(`/interventions/${id}`, { status, notes }),
+    },
+
+    drives: {
+      list: (q: Query = {}) => get<{ items: CleanupDrive[] }>("/drives", q),
+      get: (id: string) => get<CleanupDrive>(`/drives/${id}`),
+      create: (body: {
+        title: string;
+        description?: string;
+        starts_at: string;
+        duration_min?: number;
+        max_volunteers?: number;
+        incident_id?: string;
+        hotspot_id?: string;
+        lat?: number;
+        lon?: number;
+      }) => post<CleanupDrive>("/drives", body),
+      join: (id: string) => post<CleanupDrive>(`/drives/${id}/join`),
+      leave: (id: string) => del<CleanupDrive>(`/drives/${id}/join`),
+      complete: (id: string, body: { bags_collected: number; attended?: number; note?: string }) => post<CleanupDrive>(`/drives/${id}/complete`, body),
+      cancel: (id: string, reason?: string) => post<CleanupDrive>(`/drives/${id}/cancel`, { reason }),
+      stats: (days = 30) => get<DriveStats>("/drives/stats/summary", { days }),
     },
 
     analytics: (days = 30) => get<Analytics>("/analytics/overview", { days }),

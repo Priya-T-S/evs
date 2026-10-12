@@ -7,7 +7,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.catalog import CATEGORY_BY_SLUG, SEVERITY_LABELS, TERMINAL, category_label, priority_for
+from app.core.catalog import CATEGORY_BY_SLUG, SEVERITY_LABELS, SLA_HOURS, TERMINAL, category_label, priority_for
 from app.core.config import settings
 from app.core.geo import cell, point_xy, snap_public, wkt_point
 from app.core.storage import storage
@@ -181,8 +181,17 @@ def set_location(inc: Incident, lon: float, lat: float) -> None:
     inc.h3 = cell(lat, lon)
 
 
+def sla_due(inc: Incident) -> datetime | None:
+    """Target resolution time for the incident's current priority (None for P4 / closed)."""
+    hours = SLA_HOURS.get(inc.priority)
+    if hours is None or inc.status in TERMINAL or inc.first_reported_at is None:
+        return None
+    return inc.first_reported_at + timedelta(hours=hours)
+
+
 def serialize(inc: Incident, *, exact: bool = False, location_name: str | None = None, thumb: str | None = None) -> dict:
     lon, lat = point_xy(inc.public_geom if not exact else inc.geom) or (None, None)
+    due = sla_due(inc)
     return {
         "id": str(inc.id),
         "ref": inc.ref,
@@ -212,6 +221,8 @@ def serialize(inc: Incident, *, exact: bool = False, location_name: str | None =
         "first_reported_at": inc.first_reported_at,
         "last_reported_at": inc.last_reported_at,
         "resolved_at": inc.resolved_at,
+        "sla_due_at": due,
+        "overdue": bool(due and due < datetime.now(UTC)),
         "assigned_team": inc.assigned_team,
         "thumb_url": thumb,
         "is_demo": inc.is_demo,

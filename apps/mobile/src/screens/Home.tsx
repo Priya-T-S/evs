@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Bell, Camera, ChevronRight, CircleCheck, Frown, Lightbulb, MapPin, Meh, Smile, Users } from "lucide-react";
+import { AlertTriangle, Bell, Camera, ChevronRight, CircleCheck, Frown, Lightbulb, MapPin, Meh, Smile, Sparkles, Users } from "lucide-react";
 import { greeting, humanize, scoreColor, type AreaScore, type ScoreDimension } from "@ecopulse/core";
 import { formatDistance, timeAgo } from "../lib/format";
-import { useMe, useMeta, useNearby, useNotifications, usePulse, useScore, type NearbyIncident } from "../lib/queries";
+import { useDrivesNear, useMe, useMeta, useNearby, useNotifications, usePulse, useScore, type NearbyIncident } from "../lib/queries";
 import { usePosition } from "../lib/location";
 import { useUi } from "../lib/ui";
 import { useNetwork } from "../lib/network";
@@ -13,6 +13,7 @@ import { DIMENSIONS, DIMENSION_WORD, TIPS, aqiWord, areaSentence, gradeWord, lev
 import { CategoryBadge } from "../components/CategoryIcon";
 import { PulseFeedRow } from "../components/PulseFeedRow";
 import { StatusBanners } from "../components/StatusBanners";
+import { DriveCard } from "../components/Drives";
 import {
   Button,
   DemoTag,
@@ -76,6 +77,7 @@ export function HomeScreen() {
       <AreaCard data={score.data} loading={score.isLoading} error={score.isError && !score.data} onRetry={() => score.refetch()} />
 
       <Nearby />
+      <CleanUpDrives />
       <LiveActivity />
     </div>
   );
@@ -396,6 +398,40 @@ function Nearby() {
           )}
         </>
       )}
+    </section>
+  );
+}
+
+function CleanUpDrives() {
+  const pos = usePosition();
+  const navigate = useNavigate();
+  const q = useDrivesNear(pos);
+  const items = q.data?.items ?? [];
+  if (q.isError && !q.data) return null;
+  return (
+    <section aria-labelledby="drives-h">
+      <SectionHeader id="drives-h" title="Clean-up drives near you" aside={q.data ? <>within {formatDistance(5000)}</> : null} />
+      {q.isLoading && !q.data ? (
+        <SkeletonRows rows={1} />
+      ) : items.length === 0 ? (
+        <div className="mx-4 flex items-start gap-3 rounded-lg border border-line bg-surface px-4 py-3.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand" aria-hidden>
+            <Sparkles size={21} />
+          </span>
+          <p className="min-w-0 text-[0.9375rem] leading-[1.375rem] text-ink-2">
+            No clean-ups planned nearby yet. Open a garbage or water problem and tap <span className="font-medium text-ink">Organise a clean-up</span> to start one.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3 px-4">
+          {items.slice(0, 2).map((d) => (
+            <DriveCard key={d.id} d={d} />
+          ))}
+        </div>
+      )}
+      <button type="button" onClick={() => navigate("/drives")} className="pressable flex min-h-12 w-full items-center justify-center gap-1 text-[1rem] font-medium text-brand">
+        {items.length > 2 ? `See all ${items.length} clean-ups` : "Your clean-up drives"} <ChevronRight size={17} aria-hidden />
+      </button>
     </section>
   );
 }
